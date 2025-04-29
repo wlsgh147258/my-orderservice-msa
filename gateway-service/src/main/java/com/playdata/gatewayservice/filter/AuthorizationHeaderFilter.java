@@ -11,10 +11,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.List;
 
 // 회원 권한 요청 처리 -> 토큰이 유효한지를 확인해서 유효하다면 통과, 유효하지 않다면 차단.
 @Component
@@ -24,9 +27,26 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory {
     @Value("${jwt.secretKey}")
     private String secretKey;
 
+    private final List<String> allowUrl = Arrays.asList(
+            "/create", "/doLogin", "/refresh"
+    );
+
     @Override
     public GatewayFilter apply(Object config) {
         return (exchange, chain) -> {
+            String path = exchange.getRequest().getURI().getPath();
+            AntPathMatcher antPathMatcher = new AntPathMatcher();
+
+            // 허용 url 리스트를 순회하면서 지금 들어온 요청 url과 하나라도 일치하면 true 리턴
+            boolean isAllowed
+                    = allowUrl.stream()
+                    .anyMatch(url -> antPathMatcher.match("/user" + url, path));
+
+            if (isAllowed) {
+                // 허용 url이 맞다면 그냥 통과~
+                return chain.filter(exchange);
+            }
+
             // 토큰이 필요한 요청은 Header에 Authorization 이라는 이름으로 Bearer ~~~가 전달됨.
             String authorizationHeader
                     = exchange.getRequest()

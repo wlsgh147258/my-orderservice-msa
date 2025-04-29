@@ -16,6 +16,15 @@ spring:
         - id: user-service
           uri: lb://USER-SERVICE
           predicates:
+            - Path=/user-service/user/doLogin
+            - Method=POST
+          filters:
+            - RemoveRequestHeader=Cookie
+            - RewritePath=/user-service/(?<segment>.*), /$\{segment}
+
+        - id: user-service
+          uri: lb://USER-SERVICE
+          predicates:
             - Path=/user-service/**
           filters:
             # ??? ???? ???? ? ???? ????? ?? ?? ?? ? ???? ?? (?? ??)
@@ -23,6 +32,7 @@ spring:
             # ?? ??? ?? ??? ?? ??? ??? ?? -> ????? ?? ?? (??? ??)
             # ex) /user-service/users/123 -> /users/123? ???? ?? ??.
             - RewritePath=/user-service/(?<segment>.*), /$\{segment}
+            - AuthorizationHeaderFilter
 
         - id: first-service
           uri: lb://FIRST-SERVICE
