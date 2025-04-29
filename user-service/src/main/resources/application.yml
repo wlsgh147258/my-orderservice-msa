@@ -43,7 +43,7 @@ logging:
     root: info
     com:
       playdata:
-        orderservice:
+        productservice:
           common: debug
 
 
