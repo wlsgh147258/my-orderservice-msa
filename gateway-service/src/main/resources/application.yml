@@ -13,6 +13,17 @@ spring:
             preLogger: false
             postLogger: true
       routes:
+        - id: user-service
+          uri: lb://USER-SERVICE
+          predicates:
+            - Path=/user-service/**
+          filters:
+            # ??? ???? ???? ? ???? ????? ?? ?? ?? ? ???? ?? (?? ??)
+            - RemoveRequestHeader=Cookie
+            # ?? ??? ?? ??? ?? ??? ??? ?? -> ????? ?? ?? (??? ??)
+            # ex) /user-service/users/123 -> /users/123? ???? ?? ??.
+            - RewritePath=/user-service/(?<segment>.*), /$\{segment}
+
         - id: first-service
           uri: lb://FIRST-SERVICE
           predicates:
@@ -33,14 +44,16 @@ spring:
                 postLogger: true
 
 
-
-
 eureka:
   client:
     register-with-eureka: true
     fetch-registry: true
     service-url:
       defaultZone: http://localhost:8761/eureka
+
+jwt:
+  expiration: 30
+  secretKey: rI9KLc/nWq+0ehvbQXjST52lIHi+A4PurdKwAe0ZcN+0LE1QBv7p0qhFx8wzt8PaigtMXpJHdIl6p4ILsLDasA==
 
 
 
