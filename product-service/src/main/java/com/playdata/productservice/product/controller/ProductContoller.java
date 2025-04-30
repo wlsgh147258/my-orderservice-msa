@@ -92,7 +92,7 @@ public class ProductContoller {
     }
 
     // 수량 업데이트
-    @PatchMapping("/updateQuantity")
+    @PutMapping("/updateQuantity")
     public ResponseEntity<?> updateStockQuantity(@RequestBody ProductResDto dto) {
         Long prodId = dto.getId();
         int stockQuantity = dto.getStockQuantity();

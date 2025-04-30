@@ -12,7 +12,7 @@ public interface ProductServiceClient {
     @GetMapping("/product/{prodId}")
     CommonResDto<ProductResDto> findById(@PathVariable Long prodId);
 
-    @PatchMapping("/product/updateQuantity")
+    @PutMapping("/product/updateQuantity")
     ResponseEntity<?> updateQuantity(@RequestBody ProductResDto productResDto);
 
 }

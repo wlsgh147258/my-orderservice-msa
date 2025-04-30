@@ -40,7 +40,9 @@ public class SecurityConfig {
                     .requestMatchers("/user/create",
                                     "/user/doLogin",
                                     "/user/refresh",
-                                    "/user/findByEmail").permitAll()
+                                    "/user/findByEmail",
+                            "/user/health-check",
+                            "/actuator/**").permitAll()
                     .anyRequest().authenticated();
         });
 

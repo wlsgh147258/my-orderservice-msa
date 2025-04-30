@@ -1,0 +1,26 @@
+server:
+  port: 8888
+
+spring:
+  application:
+    name: config-service
+  cloud:
+    config:
+      server:
+        git:
+          uri: file:///Users/stephen/Desktop/playdata_8th_develop/git-local-repo
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, refresh, beans
+
+
+
+
+
+
+
+
+

@@ -29,6 +29,12 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	// spring에서 redis 접속 및 명령을 내릴 수 있게 해 주는 의존성 라이브러리
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+	// config-service로부터 공통 설정 받기 위해서 추가하는 라이브러리
+	implementation 'org.springframework.cloud:spring-cloud-starter-config'
+	implementation 'org.springframework.cloud:spring-cloud-starter-bootstrap'
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
 	testImplementation 'org.springframework.security:spring-security-test'
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'com.mysql:mysql-connector-j'

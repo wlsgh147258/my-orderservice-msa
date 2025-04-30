@@ -29,7 +29,7 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory {
 
     private final List<String> allowUrl = Arrays.asList(
             "/user/create", "/user/doLogin", "/user/refresh",
-            "/product/list"
+            "/product/list", "/user/health-check"
     );
 
     @Override
@@ -44,7 +44,7 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory {
                     .anyMatch(url -> antPathMatcher.match(url, path));
             log.info("isAllowed:{}", isAllowed);
 
-            if (isAllowed) {
+            if (isAllowed || path.startsWith("/actuator")) {
                 // 허용 url이 맞다면 그냥 통과~
                 return chain.filter(exchange);
             }
