@@ -35,6 +35,9 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	// spring에서 redis 접속 및 명령을 내릴 수 있게 해 주는 의존성 라이브러리
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+	// Spring Cloud 환경에서 server to server 요청을 처리해 주는 feign client 라이브러리
+	implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
 	testImplementation 'org.springframework.security:spring-security-test'
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'com.mysql:mysql-connector-j'

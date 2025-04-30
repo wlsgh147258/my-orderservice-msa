@@ -92,11 +92,10 @@ public class ProductContoller {
     }
 
     // 수량 업데이트
-    @PostMapping("/updateQuantity")
-    public ResponseEntity<?> updateStockQuantity(@RequestBody Map<String, String> map) {
-        Long prodId = Long.parseLong(map.get("productId"));
-        int stockQuantity = Integer.parseInt(map.get("stockQuantity"));
-
+    @PatchMapping("/updateQuantity")
+    public ResponseEntity<?> updateStockQuantity(@RequestBody ProductResDto dto) {
+        Long prodId = dto.getId();
+        int stockQuantity = dto.getStockQuantity();
         log.info("/product/updateQuantity: PATCH, prodId: {}, stockQuantity: {}"
                 , prodId, stockQuantity);
         productService.updateStockQuantity(prodId, stockQuantity);
