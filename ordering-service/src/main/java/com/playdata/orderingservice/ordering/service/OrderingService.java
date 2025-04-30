@@ -8,14 +8,10 @@ import com.playdata.orderingservice.ordering.dto.UserResDto;
 import com.playdata.orderingservice.ordering.entity.OrderDetail;
 import com.playdata.orderingservice.ordering.entity.Ordering;
 import com.playdata.orderingservice.ordering.repository.OrderingRepository;
-import com.playdata.orderingservice.product.entity.Product;
-import com.playdata.orderingservice.product.repository.ProductRepository;
-import com.playdata.orderingservice.user.entity.User;
-import com.playdata.orderingservice.user.repository.UserRepository;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -24,7 +20,9 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @Transactional
@@ -52,12 +50,15 @@ public class OrderingService {
                 CommonResDto.class // 응답받을 데이터의 형태
         );
         CommonResDto commonDto = responseEntity.getBody();
-        UserResDto userDto = (UserResDto) commonDto.getResult();
+        Map<String, Object> userData
+                = (Map<String, Object>) commonDto.getResult();
 
+        log.info("user-service로부터 전달받은 결과: {}", userData);
+        int userId = (Integer) userData.get("id");
 
         // Ordering(주문) 객체 생성
         Ordering ordering = Ordering.builder()
-                .userId(userDto.getId())
+                .userId((long) userId)
                 .orderDetails(new ArrayList<>()) // 아직 주문 상세 들어가기 전.
                 .build();
 
@@ -73,12 +74,14 @@ public class OrderingService {
                     CommonResDto.class
             );
             CommonResDto commonResDto = prodResponse.getBody();
-            ProductResDto productResDto = (ProductResDto) commonResDto.getResult();
-
+            Map<String, Object> productResDto
+                    = (Map<String, Object>) commonResDto.getResult();
+            log.info("product-service로부터 받아온 결과: {}", productResDto);
+            int stockQuantity = (Integer) productResDto.get("stockQuantity");
 
             // 재고 넉넉하게 있는지 확인
             int quantity = dto.getProductQuantity();
-            if (productResDto.getStockQuantity() < quantity) {
+            if (stockQuantity < quantity) {
                 throw new IllegalArgumentException("재고 부족!");
             }
 
@@ -89,16 +92,18 @@ public class OrderingService {
             // LinkedMultiValueMap은 키 하나에 여러개의 값을 리스트 형태로 저장 가능합니다.
             // 데이터 삽입 순서를 보장할 수 있습니다.
             // 웹 관련 작업에 적합합니다.
-            LinkedMultiValueMap<String, String> map = new LinkedMultiValueMap<>();
-            map.add("productId", String.valueOf(dto.getProductId()));
-            map.add("stockQuantity", String.valueOf(productResDto.getStockQuantity() - quantity));
+            Map<String, String> map = new HashMap<>();
+            map.put("productId", String.valueOf(dto.getProductId()));
+            map.put("stockQuantity", String.valueOf(stockQuantity - quantity));
 
+            HttpHeaders headers = new HttpHeaders();
+            headers.add("Content-Type", "application/json");
             // RestTemplate으로 요청 보낼 때 요청 관련 필요한 데이터 및 헤더 정보를 세팅하는 객체.
-            HttpEntity<Object> httpEntity = new HttpEntity<>(map);
+            HttpEntity<Object> httpEntity = new HttpEntity<>(map, headers);
 
             restTemplate.exchange(
                     PRODUCT_API + "product/updateQuantity",
-                    HttpMethod.PATCH,
+                    HttpMethod.POST,
                     httpEntity,
                     CommonResDto.class
             );

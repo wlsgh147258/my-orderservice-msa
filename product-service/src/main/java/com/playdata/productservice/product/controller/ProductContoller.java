@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/product")
@@ -91,10 +92,12 @@ public class ProductContoller {
     }
 
     // 수량 업데이트
-    @PatchMapping("/updateQuantity")
-    public ResponseEntity<?> updateStockQuantity(@RequestParam Long prodId,
-                                                 @RequestParam int stockQuantity) {
-        log.info("/product/updateQuantity: PUT, prodId: {}, stockQuantity: {}"
+    @PostMapping("/updateQuantity")
+    public ResponseEntity<?> updateStockQuantity(@RequestBody Map<String, String> map) {
+        Long prodId = Long.parseLong(map.get("productId"));
+        int stockQuantity = Integer.parseInt(map.get("stockQuantity"));
+
+        log.info("/product/updateQuantity: PATCH, prodId: {}, stockQuantity: {}"
                 , prodId, stockQuantity);
         productService.updateStockQuantity(prodId, stockQuantity);
         CommonResDto resDto
