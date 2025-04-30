@@ -28,7 +28,8 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory {
     private String secretKey;
 
     private final List<String> allowUrl = Arrays.asList(
-            "/create", "/doLogin", "/refresh"
+            "/user/create", "/user/doLogin", "/user/refresh",
+            "/product/list"
     );
 
     @Override
@@ -40,7 +41,7 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory {
             // 허용 url 리스트를 순회하면서 지금 들어온 요청 url과 하나라도 일치하면 true 리턴
             boolean isAllowed
                     = allowUrl.stream()
-                    .anyMatch(url -> antPathMatcher.match("/user" + url, path));
+                    .anyMatch(url -> antPathMatcher.match(url, path));
             log.info("isAllowed:{}", isAllowed);
 
             if (isAllowed) {
