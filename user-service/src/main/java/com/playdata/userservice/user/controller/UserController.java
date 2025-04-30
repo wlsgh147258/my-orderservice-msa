@@ -150,6 +150,17 @@ public class UserController {
         return ResponseEntity.ok().body(resDto);
     }
 
+    // ordering-service가 회원 정보를 원할 때 이메일을 보냅니다.
+    // 그 이메일을 가지고 ordering-service가 원하는 회원 정보를 리턴하는 메서드.
+    @GetMapping("/findByEmail")
+    public ResponseEntity<?> getUserByEmail(@RequestParam String email) {
+        log.info("getUserByEmail: email: {}", email);
+        UserResDto dto = userService.findByEmail(email);
+        CommonResDto resDto
+                = new CommonResDto(HttpStatus.OK, "이메일로 회원 조회 완료", dto);
+        return ResponseEntity.ok().body(resDto);
+    }
+
 
 }
 

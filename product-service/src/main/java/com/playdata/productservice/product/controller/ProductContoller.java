@@ -78,6 +78,30 @@ public class ProductContoller {
         return ResponseEntity.ok().body(resDto);
     }
 
+    // 단일 상품 조회
+    @GetMapping("/{prodId}")
+    public ResponseEntity<?> getProductById(@PathVariable Long prodId) {
+        log.info("/product/{}: GET!", prodId);
+        ProductResDto dto = productService.getProductInfo(prodId);
+
+        CommonResDto resDto
+                = new CommonResDto(HttpStatus.OK, "조회 완료", dto);
+
+        return ResponseEntity.ok().body(resDto);
+    }
+
+    // 수량 업데이트
+    @PatchMapping("/updateQuantity")
+    public ResponseEntity<?> updateStockQuantity(@RequestParam Long prodId,
+                                                 @RequestParam int stockQuantity) {
+        log.info("/product/updateQuantity: PUT, prodId: {}, stockQuantity: {}"
+                , prodId, stockQuantity);
+        productService.updateStockQuantity(prodId, stockQuantity);
+        CommonResDto resDto
+                = new CommonResDto(HttpStatus.OK, "변경 완료", prodId);
+        return ResponseEntity.ok().body(resDto);
+    }
+
 }
 
 
