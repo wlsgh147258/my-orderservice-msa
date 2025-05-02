@@ -46,6 +46,7 @@ public class AuthorizationHeaderFilter extends AbstractGatewayFilterFactory {
 
             if (isAllowed || path.startsWith("/actuator")) {
                 // 허용 url이 맞다면 그냥 통과~
+                log.info("gateway filter 통과!");
                 return chain.filter(exchange);
             }
 

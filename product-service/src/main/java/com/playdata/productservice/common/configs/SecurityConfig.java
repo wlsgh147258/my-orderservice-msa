@@ -45,7 +45,8 @@ public class SecurityConfig {
 //                    .requestMatchers("/user/list").hasRole("ROLE_ADMIN")
                     .requestMatchers("/product/list",
                             "/product/updateQuantity",
-                            "/product/{prodId}").permitAll()
+                            "/product/{prodId}",
+                            "/actuator/**").permitAll()
                     .anyRequest().authenticated();
         });
         // "/user/create", "/user/doLogin"은 인증 검사가 필요 없다고 설정했고,
