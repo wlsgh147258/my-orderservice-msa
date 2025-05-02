@@ -46,6 +46,7 @@ public class SecurityConfig {
                     .requestMatchers("/product/list",
                             "/product/updateQuantity",
                             "/product/{prodId}",
+                              "/product/products",
                             "/actuator/**").permitAll()
                     .anyRequest().authenticated();
         });

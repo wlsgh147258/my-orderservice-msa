@@ -104,6 +104,14 @@ public class ProductService {
         foundProduct.setStockQuantity(stockQuantity);
         productRepository.save(foundProduct);
     }
+
+    public List<ProductResDto> getProductsName(List<Long> productIds) {
+        List<Product> products = productRepository.findByIdIn(productIds);
+
+        return products.stream()
+                .map(Product::fromEntity)
+                .collect(Collectors.toList());
+    }
 }
 
 

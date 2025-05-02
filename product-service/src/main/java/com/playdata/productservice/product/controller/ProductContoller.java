@@ -104,6 +104,17 @@ public class ProductContoller {
         return ResponseEntity.ok().body(resDto);
     }
 
+    // 한 사용자의 모든 주문 내역 안에 있는 상품 정보를 리턴하는 메서드
+    @PostMapping("/products")
+    public ResponseEntity<?> getProducts(@RequestBody List<Long> productIds) {
+        log.info("/products: GET, productIds: {}", productIds);
+        List<ProductResDto> productDtos = productService.getProductsName(productIds);
+        CommonResDto resDto
+                = new CommonResDto(HttpStatus.OK, "조회 완료", productDtos);
+
+        return ResponseEntity.ok().body(resDto);
+    }
+
 }
 
 
