@@ -15,6 +15,8 @@ import com.playdata.orderingservice.ordering.repository.OrderingRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cloud.client.circuitbreaker.CircuitBreaker;
+import org.springframework.cloud.client.circuitbreaker.CircuitBreakerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
@@ -37,14 +39,28 @@ public class OrderingService {
     private final UserServiceClient userServiceClient;
     private final ProductServiceClient productServiceClient;
 
+    // CircuitBreaker 동작 객체 주입
+    private final CircuitBreakerFactory circuitBreakerFactory;
+
     public Ordering createOrder(List<OrderingSaveReqDto> dtoList,
                                 TokenUserInfo userInfo) {
+
+        // 서킷 브레이커 적용하기
+        CircuitBreaker userCircuit = circuitBreakerFactory.create("userService");
+
+        CommonResDto<UserResDto> byEmail = userCircuit.run(
+                // 정상 호출
+                () -> userServiceClient.findByEmail(userInfo.getEmail()),
+                // 장애 시 대체 로직
+                throwable -> {
+                    log.error("유저 서비스 호출 실패! 오류: {}", throwable.getMessage());
+                    return null;
+                }
+        );
 
         // Ordering 객체를 생성하기 위해 회원 정보를 얻어오자.
         // 우리가 가진 유일한 정보는 토큰 안에 들어있던 이메일 뿐입니다...
         // 이메일을 가지고 요청을 보내자 -> user-service
-        CommonResDto<UserResDto> byEmail
-                = userServiceClient.findByEmail(userInfo.getEmail());
 
         UserResDto userDto = byEmail.getResult();
         log.info("user-service로부터 전달받은 결과: {}", userDto);

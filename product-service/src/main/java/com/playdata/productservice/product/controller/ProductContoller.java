@@ -120,7 +120,9 @@ public class ProductContoller {
     public ResponseEntity<?> cancelProduct(@RequestBody Map<Long, Integer> map) {
         log.info("/product/cancel: PUT, map: {}", map);
         productService.cancelProduct(map);
-        return ResponseEntity.ok().body("수량 원복 완료!");
+        CommonResDto resDto
+                = new CommonResDto(HttpStatus.OK, "update completed", map);
+        return ResponseEntity.ok().body(resDto);
     }
 
 

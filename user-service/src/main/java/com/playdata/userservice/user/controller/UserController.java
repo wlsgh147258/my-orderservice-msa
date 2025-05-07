@@ -159,6 +159,12 @@ public class UserController {
     // 그 이메일을 가지고 ordering-service가 원하는 회원 정보를 리턴하는 메서드.
     @GetMapping("/findByEmail")
     public ResponseEntity<?> getUserByEmail(@RequestParam String email) {
+        try {
+            Thread.sleep(2000);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
         log.info("getUserByEmail: email: {}", email);
         UserResDto dto = userService.findByEmail(email);
         CommonResDto resDto
