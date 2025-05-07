@@ -18,4 +18,6 @@ public class UserResDto {
     private Role role;
     private Address address;
 
+    private boolean dummyFlag;
+
 }
