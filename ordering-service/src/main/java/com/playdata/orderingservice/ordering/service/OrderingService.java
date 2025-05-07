@@ -9,8 +9,10 @@ import com.playdata.orderingservice.ordering.dto.OrderingSaveReqDto;
 import com.playdata.orderingservice.ordering.dto.ProductResDto;
 import com.playdata.orderingservice.ordering.dto.UserResDto;
 import com.playdata.orderingservice.ordering.entity.OrderDetail;
+import com.playdata.orderingservice.ordering.entity.OrderStatus;
 import com.playdata.orderingservice.ordering.entity.Ordering;
 import com.playdata.orderingservice.ordering.repository.OrderingRepository;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -178,6 +180,29 @@ public class OrderingService {
         return orderingList.stream()
                 .map(ordering -> ordering.fromEntity(email, productIdToNameMap))
                 .collect(Collectors.toList());
+    }
+
+    public Ordering cancelOrder(long id) {
+        Ordering ordering = orderingRepository.findById(id).orElseThrow(
+                () -> new EntityNotFoundException("주문 없음!")
+        );
+        // 주문 취소 -> 주문 entity의 status를 CANCELED로 변경
+        // 당시 주문했던 상품들의 수량을 원상복구 해 놓아야 한다.
+        // 주문1 -> 상품34: 3개, 상품17: 5개 -> 주문 들어갔을 때 감소했으니까, 주문 취소때는 증가 시켜야 한다.
+        List<OrderDetail> orderDetailList = ordering.getOrderDetails();
+        Map<Long, Integer> map = orderDetailList.stream()
+                .collect(Collectors.toMap(
+                        detail -> detail.getProductId(),
+                        detail -> detail.getQuantity()
+                ));
+        log.info("toMap의 결과: {}", map);
+        productServiceClient.cancelProduct(map);
+
+
+        // 더티 체킹 (save를 하지 않아도 변경을 감지해서 update를 날려 준다.)
+        ordering.updateStatus(OrderStatus.CANCELED);
+//        orderingRepository.save(ordering);
+        return ordering;
     }
 }
 

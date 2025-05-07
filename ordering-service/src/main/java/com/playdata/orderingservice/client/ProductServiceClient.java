@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @FeignClient(name = "product-service")
 public interface ProductServiceClient {
@@ -20,6 +21,8 @@ public interface ProductServiceClient {
     @PostMapping("/product/products")
     CommonResDto<List<ProductResDto>> getProducts(@RequestBody List<Long> productIds);
 
+    @PutMapping("/product/cancel")
+    ResponseEntity<?> cancelProduct(@RequestBody Map<Long, Integer> map);
 }
 
 

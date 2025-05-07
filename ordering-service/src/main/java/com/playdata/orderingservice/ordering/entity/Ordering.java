@@ -2,10 +2,7 @@ package com.playdata.orderingservice.ordering.entity;
 
 import com.playdata.orderingservice.ordering.dto.OrderingListResDto;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,10 +31,19 @@ public class Ordering {
     @JoinColumn
     private Long userId;
 
-    private OrderStatus orderStatus;
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private OrderStatus orderStatus = OrderStatus.ORDERED;
 
     @OneToMany(mappedBy = "ordering", cascade = CascadeType.PERSIST)
     private List<OrderDetail> orderDetails;
+
+    // lombok의 setter를 사용해도 되지만, 원하는 필드값을 수정하기 위한 메서드를 직접 작성해도 됩니다.
+    // 조건문, 반복문 등을 세팅해야 된다면 더더욱 직접 setter를 만들어야 합니다.
+    public void updateStatus(OrderStatus orderStatus) {
+        this.orderStatus = orderStatus;
+    }
+
 
     // dto 변환 메서드
     public OrderingListResDto fromEntity(
