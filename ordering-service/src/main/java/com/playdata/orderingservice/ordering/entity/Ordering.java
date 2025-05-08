@@ -51,7 +51,9 @@ public class Ordering {
     @Builder.Default
     private OrderStatus orderStatus = OrderStatus.ORDERED;
 
-    @OneToMany(mappedBy = "ordering", cascade = CascadeType.PERSIST)
+    // CascadeType.PERSIST로 설정하면 새로운 엔터티 생성만 처리하고 기존 엔터티 업데이트는
+    // 자동으로 처리되지 않습니다. -> MERGE (부모 엔터티 업데이트 시 연관 엔터티도 함께 업데이트)
+    @OneToMany(mappedBy = "ordering", cascade = CascadeType.ALL)
     private List<OrderDetail> orderDetails;
 
     // lombok의 setter를 사용해도 되지만, 원하는 필드값을 수정하기 위한 메서드를 직접 작성해도 됩니다.

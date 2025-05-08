@@ -13,12 +13,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 @Slf4j
 @RequiredArgsConstructor
 @Component
+@Transactional
 public class OrderRetryScheduler {
 
     private final OrderingRepository orderingRepository;
@@ -49,6 +51,7 @@ public class OrderRetryScheduler {
                         new TypeReference<List<OrderingSaveReqDto>>() {
                         }
                 );
+                log.info("변환된 dtoList: {}", dtoList);
 
                 // 재처리 (주문 status가 무엇이냐에 따라 분기가 나누어져야 할 것 같아요)
                 if (order.getOrderStatus() == OrderStatus.PENDING_USER_FAILURE) {

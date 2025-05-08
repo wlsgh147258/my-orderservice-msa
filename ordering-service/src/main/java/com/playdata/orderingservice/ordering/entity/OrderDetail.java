@@ -2,14 +2,11 @@ package com.playdata.orderingservice.ordering.entity;
 
 import com.playdata.orderingservice.ordering.dto.OrderingListResDto;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.util.Map;
 
-@Getter
+@Getter @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
