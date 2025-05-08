@@ -36,16 +36,25 @@ resilience4j:
       productService: # product-service용 전용 설정
         base-config: default
         sliding-window-size: 30
+      productServiceUpdate: # 재고 차감 전용 인스턴스 추가
+        base-config: default
+        sliding-window-size: 5
+        failure-rate-threshold: 30
+        wait-duration-in-open-state: 5000
+
 
   timelimiter:
     configs:
       default:
-        timeout-duration: 2s # 요청이 몇 초 안에 완료되어야 하는지
+        timeout-duration: 3s # 요청이 몇 초 안에 완료되어야 하는지
         cancel-running-future: true # 실행중인 작업 취소 여부, true 주면 타임아웃 발생 시 작업 강제 취소
     instances:
       userService:
         base-config: default
       productService:
+        base-config: default
+        timeout-duration: 1s
+      productServiceUpdate: # 재고 차감용 타임리미터 설정도 추가
         base-config: default
         timeout-duration: 1s
   retry:
@@ -56,6 +65,9 @@ resilience4j:
       productService:
         max-attempts: 5
         wait-duration: 2s
+      productServiceUpdate: # 재고 차감 재시도도 별도 설정 가능
+        max-attempts: 3
+        wait-duration: 1s
 
 
 

@@ -1,5 +1,7 @@
 package com.playdata.orderingservice.ordering.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.playdata.orderingservice.client.ProductServiceClient;
 import com.playdata.orderingservice.client.UserServiceClient;
 import com.playdata.orderingservice.common.auth.TokenUserInfo;
@@ -11,9 +13,7 @@ import com.playdata.orderingservice.ordering.dto.UserResDto;
 import com.playdata.orderingservice.ordering.entity.OrderDetail;
 import com.playdata.orderingservice.ordering.entity.OrderStatus;
 import com.playdata.orderingservice.ordering.entity.Ordering;
-import com.playdata.orderingservice.ordering.entity.PendingOrder;
 import com.playdata.orderingservice.ordering.repository.OrderingRepository;
-import com.playdata.orderingservice.ordering.repository.PendingOrderRepository;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.ws.rs.ServiceUnavailableException;
 import lombok.RequiredArgsConstructor;
@@ -36,7 +36,6 @@ import java.util.stream.Collectors;
 public class OrderingService {
 
     private final OrderingRepository orderingRepository;
-    private final PendingOrderRepository pendingOrderRepository;
     private final RestTemplate restTemplate;
 
     // feign client 구현체 주입 받기
@@ -48,7 +47,68 @@ public class OrderingService {
 
     public Ordering createOrder(List<OrderingSaveReqDto> dtoList,
                                 TokenUserInfo userInfo) {
+        UserResDto userDto;
+        Ordering ordering;
 
+        try {
+            userDto = getUserResDto(userInfo.getEmail());
+            log.info("user-service로부터 전달받은 결과: {}", userDto);
+
+            // Ordering(주문) 객체 생성
+            ordering = Ordering.builder()
+                    .userId(userDto.getId())
+                    .userEmail(userDto.getEmail())
+                    .orderDetails(new ArrayList<>()) // 아직 주문 상세 들어가기 전.
+                    .build();
+
+            // 여기서 dtoList를 JSON으로 직렬화해서 ordering에 저장
+            // 사용자의 주문 상세 내역을 DB에 꽂아버리기 위해서 필드를 하나 추가해 놓음. -> JSON 문자열 필드
+            // 지금까지는 문제가 없었지만, 이후에 product쪽에 장애 발생하면 결국 재처리 들어가야 되거든요.
+            // 미리 주문 상세 내역을 JSON으로 바꿔서 Ordering쪽에 때려 놓자.
+            ObjectMapper mapper = new ObjectMapper();
+            String dtoJson = mapper.writeValueAsString(dtoList);
+            ordering.setOriginalRequestJson(dtoJson); // ordering 엔티티에 필드 미리 추가해둬야 함
+
+
+        } catch (Exception e) {
+            log.error("user-service 장애. 주문 보류로 처리합니다. {}", e.getMessage());
+
+            // 일단 Ordering을 생성하긴 하는데, 정상처리는 아니고 보류(PENDING) 처리만 진행.
+            // 가지고 있는 정보는 전부 다 채워 넣자 -> 나중에 재처리 할거니깐.
+            Ordering pendingUserFail = Ordering.builder()
+                    .userEmail(userInfo.getEmail())
+                    .orderStatus(OrderStatus.PENDING_USER_FAILURE)
+                    .orderDetails(new ArrayList<>())
+                    .build();
+
+            try {
+                ObjectMapper mapper = new ObjectMapper();
+                String dtoJson = mapper.writeValueAsString(dtoList);
+                pendingUserFail.setOriginalRequestJson(dtoJson);
+            } catch (JsonProcessingException ex) {
+                e.printStackTrace();
+            }
+
+//            // 주문 내역을 List<OrderDetail>로 바꾸는 로직
+//            // 재처리 시에 이사람이 어떤 상품을 몇 개 주문했는지에 대한 정보는 있어야 하니깐.
+//            List<OrderDetail> detailList = dtoList.stream()
+//                    .map(dto -> toOrderDetail(dto, pendingUserFail))
+//                    .collect(Collectors.toList());
+//
+//            pendingUserFail.getOrderDetails().addAll(detailList);
+
+            return orderingRepository.save(pendingUserFail); // 여기서 바로 리턴 끝
+
+        }
+
+        // product쪽에 요청 보내는 로직은 따로 메서드로 나누었습니다. (너무 길어서...)
+        processOrderToProductService(dtoList, userDto.getId(), ordering);
+
+        // 모든 로직에 장애가 없었다면 주문 확정(status가 ORDERED로 처리)
+        return orderingRepository.save(ordering);
+    }
+
+    public UserResDto getUserResDto(String email) {
         // 서킷 브레이커 적용하기
         CircuitBreaker userCircuit = circuitBreakerFactory.create("userService");
 
@@ -57,98 +117,112 @@ public class OrderingService {
         // 이메일을 가지고 요청을 보내자 -> user-service
         CommonResDto<UserResDto> byEmail = userCircuit.run(
                 // 정상 호출
-                () -> userServiceClient.findByEmail(userInfo.getEmail()),
-                // 장애 시 대체 로직
-                throwable -> {
-                    log.error("유저 서비스 호출 실패! 오류: {}", throwable.getMessage());
-
-                    // 긴급 상황용 더미 데이터 리턴 (최소한의 기능은 유지)
-                    UserResDto dummyUser = UserResDto.builder()
-                            .id(-1L) // 음수 id로 더미 표시
-                            .email(userInfo.getEmail())
-                            .name("임시 사용자")
-                            .dummyFlag(true) // 임시 값임을 표시
-                            .build();
-
-                    CommonResDto<UserResDto> dummyResponse = new CommonResDto<>();
-                    dummyResponse.setStatusCode(200);
-                    dummyResponse.setResult(dummyUser);
-                    dummyResponse.setStatusMessage("user-service 일시적 장애");
-
-                    return dummyResponse;
-                }
+                () -> userServiceClient.findByEmail(email)
+//                    throwable -> {
+//                        // 장애가 발생한 상황에 실행할 객체 선언 (fallback)
+                      // 이후의 로직을 계속 실행하고 싶을 때 사용.
+                      // 여기에 작성하는 로직으로 정상 호출을 완벽하게 대체할 수 있을 때 사용.
+                      // 우리의 상황 -> user-service에서 장애 발생하면 id를 받아올 방법이 아예 없음;;
+                      // 정상 호출을 완벽하게 대체할 수 없음. try-catch로 주문 흐름을 보류쪽으로 빼서 작업.
+//                    }
         );
-
-        UserResDto userDto = byEmail.getResult();
-        log.info("user-service로부터 전달받은 결과: {}", userDto);
-
-        // Ordering(주문) 객체 생성
-        Ordering ordering = Ordering.builder()
-                .userId(userDto.getId())
-                .orderDetails(new ArrayList<>()) // 아직 주문 상세 들어가기 전.
-                .build();
-
-        processOrderToProductService(dtoList, userDto, ordering);
-
-        return orderingRepository.save(ordering);
+        return byEmail.getResult();
     }
 
-    public void processOrderToProductService(List<OrderingSaveReqDto> dtoList, UserResDto userDto, Ordering ordering) {
+    public void processOrderToProductService(List<OrderingSaveReqDto> dtoList,
+                                             Long userId,
+                                             Ordering ordering
+    ) {
         // 주문 상세 내역에 대한 처리를 반복해서 지정.
         for (OrderingSaveReqDto dto : dtoList) {
 
-            // dto 안에 있는 상품 id를 이용해서 상품 정보 얻어오자.
-            // product 객체를 조회하자 -> product-service에게 요청해야 함!
-            CircuitBreaker productCircuit
-                    = circuitBreakerFactory.create("productService");
+            try {
+                // dto 안에 있는 상품 id를 이용해서 상품 정보 얻어오자.
+                // product 객체를 조회하자 -> product-service에게 요청해야 함!
+                ProductResDto prodResDto = getProductInfo(dto.getProductId());
 
-            CommonResDto<ProductResDto> byId = productCircuit.run(
-                    () -> productServiceClient.findById(dto.getProductId()),
-                    throwable -> {
-                        log.error("상품 서비스 호출 실패! 오류: {}", throwable.getMessage());
+                log.info("product-service로부터 받아온 결과: {}", prodResDto);
+                int stockQuantity = prodResDto.getStockQuantity();
 
-                        // 상품 정보 없이는 주문 생성이 힘들어요. PENDING 상태로 DB에 기록
-                        PendingOrder pendingOrder = PendingOrder.builder()
-                                .userId(userDto.getId())
-                                .dtoList(dtoList)
-                                .build();
-                        pendingOrderRepository.save(pendingOrder);
+                // 재고 넉넉하게 있는지 확인
+                int quantity = dto.getProductQuantity();
+                if (stockQuantity < quantity) {
+                    throw new IllegalArgumentException("재고 부족!");
+                }
 
-                        // 예외를 던져서 현재 주문 처리 중단
-                        throw new ServiceUnavailableException(
-                                "상품 서비스 일시적 장애로 주문 보류됨! id: {}", pendingOrder.getId()
-                        );
-                    }
-            );
+                deductStock(prodResDto, quantity);
 
-            ProductResDto prodResDto = byId.getResult();
+                // 주문 상세 내역 엔터티 생성
+                OrderDetail orderDetail = OrderDetail.builder()
+                        .productId(dto.getProductId())
+                        .ordering(ordering)
+                        .quantity(quantity)
+                        .build();
 
-            log.info("product-service로부터 받아온 결과: {}", prodResDto);
-            int stockQuantity = prodResDto.getStockQuantity();
+                // 주문 내역 리스트에 상세 내역을 add하기.
+                // (cascadeType.PERSIST로 세팅했기 때문에 함께 INSERT가 진행될 것!)
+                ordering.getOrderDetails().add(orderDetail);
+            } catch (ServiceUnavailableException e) {
+                // product와의 통신에서는 경우의 수가 2가지 이기 때문에
+                // 에러 메세지에 포함 되어있는 단어의 유무에 따라 status를 다르게 세팅.
+                ordering.updateStatus(
+                        e.getMessage().contains("차감") ?
+                                OrderStatus.PENDING_PROD_STOCK_UPDATE :
+                                OrderStatus.PENDING_PROD_NOT_FOUND
+                );
+                // catch 블록에서는 이 상품만 다시 add
+                ordering.getOrderDetails().add(toOrderDetail(dto, ordering));
+                orderingRepository.save(ordering);
 
-            // 재고 넉넉하게 있는지 확인
-            int quantity = dto.getProductQuantity();
-            if (stockQuantity < quantity) {
-                throw new IllegalArgumentException("재고 부족!");
+            } catch (IllegalArgumentException e) {
+                // 이 상황은 주문 보류가 아니에요! 서비스 장애 때문에 벌어진 상황이 아님!
+                log.warn("재고 부족으로 주문 불가! 상품 ID: {}, 오류: {}", dto.getProductId(), e.getMessage());
+                throw e; // 클라이언트 예외니까 그대로 던짐 -> 컨트롤러 -> 전역 예외 핸들러가 클라이언트로 상태를 전달.
             }
-
-            // 재고가 부족하지 않다면 재고 수량을 주문 수량만큼 빼주자
-            // product-service에게 재고 수량이 변경되었다고 알려주자.
-            // 상품 id와 변경되어야 할 수량을 함께 보내주자.
-            prodResDto.setStockQuantity(stockQuantity - quantity);
-            productServiceClient.updateQuantity(prodResDto);
-
-            // 주문 상세 내역 엔터티 생성
-            OrderDetail orderDetail = OrderDetail.builder()
-                    .productId(dto.getProductId())
-                    .ordering(ordering)
-                    .quantity(quantity)
-                    .build();
-
-            // 주문 내역 리스트에 상세 내역을 add하기.
-            // (cascadeType.PERSIST로 세팅했기 때문에 함께 INSERT가 진행될 것!)
-            ordering.getOrderDetails().add(orderDetail);
         }
+    }
+
+    // 재고를 주문수량만큼 감소시켜달라는 요청을 전담하는 메서드
+    private void deductStock(ProductResDto prodResDto, int quantity) {
+        try {
+            CircuitBreaker updateCircuit = circuitBreakerFactory.create("productServiceUpdate");
+
+            updateCircuit.run(() -> {
+                prodResDto.setStockQuantity(prodResDto.getStockQuantity() - quantity);
+                productServiceClient.updateQuantity(prodResDto);
+                return null;
+            });
+
+        } catch (Exception e) {
+            log.error("재고 차감 실패! 상품 ID: {}, 오류: {}", prodResDto.getId(), e.getMessage());
+            throw new ServiceUnavailableException("재고 차감 실패");
+        }
+    }
+
+    // 번호를 전달받아서 product-service로부터 상품 정보 조회를 전담하는 메서드
+    private ProductResDto getProductInfo(Long productId) {
+        try {
+            CircuitBreaker productCircuit = circuitBreakerFactory.create("productService");
+
+            // 여기도 장애 발생 시 fallback 로직을 작성하지 않았습니다. 왜냐?
+            // 대체 로직이 정상 상황을 완벽하게 대체할 수가 없으니깐... -> 주문 보류!
+            // user-service쪽과 마찬가지로 아예 예외로 빼서 나중에 재처리 해 줄겁니다.
+            CommonResDto<ProductResDto> byId = productCircuit.run(
+                    () -> productServiceClient.findById(productId)
+            );
+            return byId.getResult();
+        } catch (Exception e) {
+            log.error("상품 정보 조회 실패! 상품 ID: {}, 오류: {}", productId, e.getMessage());
+            throw new ServiceUnavailableException("상품 정보 조회 실패");
+        }
+    }
+
+    private OrderDetail toOrderDetail(OrderingSaveReqDto dto, Ordering ordering) {
+        return OrderDetail.builder()
+                .productId(dto.getProductId())
+                .quantity(dto.getProductQuantity())
+                .ordering(ordering)
+                .build();
     }
 
     public List<OrderingListResDto> myOrder(final TokenUserInfo userInfo) {
@@ -261,6 +335,8 @@ public class OrderingService {
 //        orderingRepository.save(ordering);
         return ordering;
     }
+
+
 }
 
 
