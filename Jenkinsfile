@@ -1,7 +1,8 @@
 // 자주 사용되는 필요한 변수는 전역으로 선언하는 것도 가능
 // ECR credential helper 이름
 def ecrLoginHelper = "docker-credential-ecr-login"
-def deployHost = "172.31.33.188" // 배포 인스턴스의 프라이빗 주소
+// 프라이빗 IPv4 주소
+def deployHost = "172.31.33.188"
 
 
 // 젠킨스 파일의 선언형 파이프라인 정의부 시작 (그루비 언어)
@@ -19,6 +20,9 @@ pipeline {
                 checkout scm // 젠킨스와 연결된 소스 컨트롤 매니저, (git 등)에서 코드를 가져오는 명령어
             }
         }
+
+        ////
+
         stage('Detect Changes') {
             steps {
                 script {
@@ -59,7 +63,7 @@ pipeline {
                     // 변경된 서비스 이름을 모아놓은 리스트를 다른 스테이지에서도
                     // 사용하기 위해 환경변수로 선언
                     // join() : 지정한 문자열을 구분자로 하여 리스트 요소를 하나의 문자열로 리턴, 중복 제거
-                    env.CHANGED_SERVICES = changedServices.join(",")
+                    env.CHANGED_SERVICES = env.SERVICE_DIRS.join(",")
                     if(env.CHANGED_SERVICES == "") {
                         echo "No changes Detected. Skipping Build Stage"
                         // 성공 상태로 파이프라인 종료
@@ -68,9 +72,13 @@ pipeline {
                 }
             }
         }
+
+        /////
+
         stage('Build changed Services') {
             // CHANGED_SERVICES가 빈 문자열이 아니라면 아래의 steps를 실행하겠다.
             // 이 스테이지는 빌드되어야 할 서비스가 존재할 때만 실행될 스테이지다!
+
             steps {
                 script {
                 // 환경 변수 불러오기
@@ -89,67 +97,84 @@ pipeline {
             }
         }
 
+            ////
+
          stage('Build Docker Image & Push to AWS ECR') {
-            when {
-                expression { env.CHANGED_SERVICES != "" }
-            }
-            steps {
-                script {
-                    // Jenkins에 저장된 credentials를 사용하여 AWS 자격증명을 설정.
-                    withAWS(region: "${REGION}", credentials:"aws-key"){
-                        def changedServices = env.CHANGED_SERVICES.split(",")
-                           changedServices.each {service ->
-                           sh """
-                           # ECR에 이미지를 push하기 위해 인증 정보를 대신 검증 해주는 도구 다운로드.
-                           # /user/local/bin/ 경로에 다운로드한 해당 파일을 이동 및 실행할 수 있는 권한 부여
+             steps {
+                 script {
+                     withAWS(region: "${REGION}", credentials: "aws-key") {
+                         def changedServices = env.SERVICE_DIRS.split(",")
+                         changedServices.each { service ->
+                             // secret 파일이 필요한 경우만 credentials 호출
+                             if (service == "config-service") {
+                                 withCredentials([file(credentialsId: 'application-dev.yml', variable: 'DEV_YML')]) {
+                                     sh """
+                                     # secret 파일 복사
+                                     cp \$DEV_YML ${service}/src/main/resources/application-dev.yml
 
-                           curl -O https://amazon-ecr-credential-helper-releases.s3.us-east-2.amazonaws.com/0.4.0/linux-amd64/${ecrLoginHelper}
-                           chmod +x ${ecrLoginHelper}
-                           mv ${ecrLoginHelper} /usr/local/bin/
+                                     # docker credential helper 설정
+                                     curl -O https://amazon-ecr-credential-helper-releases.s3.us-east-2.amazonaws.com/0.4.0/linux-amd64/${ecrLoginHelper}
+                                     chmod +x ${ecrLoginHelper}
+                                     mv ${ecrLoginHelper} /usr/local/bin/
 
+                                     mkdir -p ~/.docker
+                                     echo '{"credHelpers": {"${ECR_URL}": "ecr-login"}}' > ~/.docker/config.json
 
-                           # Docker에게 push 명령을 내리면 지정된 URL로 push할 수 있게 설정.
-                           # 자동으로 로그인 도구를 쓰게 설정
+                                     docker build -t ${service}:latest ${service}
+                                     docker tag ${service}:latest ${ECR_URL}/${service}:latest
+                                     docker push ${ECR_URL}/${service}:latest
 
-                           mkdir -p ~/.docker
+                                     # 보안상, 빌드 이후에는 dev.yml 삭제
+                                     rm -f ${service}/src/main/resources/dev.yml
+                                     """
+                                 }
+                             } else {
+                                 sh """
+                                 curl -O https://amazon-ecr-credential-helper-releases.s3.us-east-2.amazonaws.com/0.4.0/linux-amd64/${ecrLoginHelper}
+                                 chmod +x ${ecrLoginHelper}
+                                 mv ${ecrLoginHelper} /usr/local/bin/
 
-                           echo '{"credHelpers": {"${ECR_URL}": "ecr-login"}}' > ~/.docker/config.json
+                                 mkdir -p ~/.docker
+                                 echo '{"credHelpers": {"${ECR_URL}": "ecr-login"}}' > ~/.docker/config.json
 
-                           echo "${ECR_URL}/${service}"
+                                 docker build -t ${service}:latest ${service}
+                                 docker tag ${service}:latest ${ECR_URL}/${service}:latest
+                                 docker push ${ECR_URL}/${service}:latest
+                                 """
+                             }
+                         }
+                     }
+                 }
+             }
+         }
 
-                           docker build -t ${service}:latest ${service}
-                           docker tag ${service}:latest ${ECR_URL}/${service}:latest
-                           docker push ${ECR_URL}/${service}:latest
-                           """
-                        }
+         /////
+
+         stage('Deploy Changed Services to AWS EC2') {
+
+                steps {
+                    sshagent(credentials: ["deploy-key"]) {
+                        sh """
+                        # Jenkins에서 배포 서버로 docker-compose.yml을 복사 후 전송
+                        scp -o StrictHostKeyChecking=no docker-compose.yml ubuntu@${deployHost}:/home/ubuntu/docker-compose.yml
+
+                        # Jenkins에서 배포 서버로 직접 접속을 시도
+                        # docker-compose 실행하기 위해서
+                        ssh -o StrictHostKeyChecking=no ubuntu@${deployHost} '
+                        cd /home/ubuntu && \
+
+                        # 배포 서버에서 Jenkins로 로그인 (로그인 만료를 방지하기 위해서)
+                        aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_URL} && \
+
+                        # docker-compose를 통해서 변경된 서비스의 이미지만 pull -> 일괄 실행
+                        docker-compose pull ${env.CHANGED_SERVICES} && \
+                        docker compose up -d ${env.CHANGED_SERVICES} '
+                        """
                     }
                 }
             }
-         }
-         stage('Deploy Changed Services to AWS EC2'){
-             when {
-                 expression { env.CHANGED_SERVICES != "" }
-             }
-             steps{
-                sshagent(credentials: ["deploy-key"]){
-                    sh """
-                    # Jenkins에서 배포 서버로 docker-compose.yml 복사 후 전송
-                    scp -o StrictHostKeyChecking=no docker-compose.yml ubuntu@${deployHost}:/home/ubuntu/docker-compose.yml
 
-                    # 배포 서버로 직접 접속 시도 (compose 돌리러 갑니다!)
-                    ssh -o StrictHostKeyChecking=no ubuntu@${deployHost}'
-                    cd/home/ubuntu && \
+            /////
 
-                    # 시간이 지나 로그인 만료 시 필요한 명령
-                    aws ecr get-login-password ${REGION} | docker login --username AWS --password-stdin ${ECR_URL} && \
-
-                    # docker compose를 이용해서 변경된 서비스만 이미지를 pull -> 일괄 실행
-                    docker-compose pull ${env.CHANGED_SERVICES} && \
-                    docker compose up -d ${env.CHANGED_SERVICES}
-                    '
-                    """
-                }
-             }
-          }
         }
     }
