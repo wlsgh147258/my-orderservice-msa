@@ -146,7 +146,7 @@ pipeline {
 
                     # 배포 서버로 직접 접속 시도 (compose 돌리러 갑니다!)
                     ssh -o StrictHostKeyChecking=no ubuntu@${deployHost}'
-                    cd/home/ubuntu && \
+                    cd /home/ubuntu && \
 
                     # 시간이 지나 로그인 만료 시 필요한 명령
                     aws ecr get-login-password ${REGION} | docker login --username AWS --password-stdin ${ECR_URL} && \
