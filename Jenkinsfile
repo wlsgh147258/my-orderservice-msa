@@ -8,7 +8,7 @@ pipeline {
     agent any // 젠킨스 서버가 여러개 일때, 어느 젠킨스 서버에서나 실행이 가능
     environment{
         SERVICE_DIRS="config-service,discovery-service,gateway-service,ordering-service,user-service,product-service"
-        ECR_URL="597088024931.dkr.ecr.ap-northeast-2.amazonaws.com/"
+        ECR_URL="597088024931.dkr.ecr.ap-northeast-2.amazonaws.com"
         REGION="ap-northeast-2"
     }
     stages {
@@ -89,14 +89,12 @@ pipeline {
         }
 
          stage('Build Docker Image & Push to AWS ECR') {
-            when {
-                expression { env.CHANGED_SERVICES != "" }
-            }
+
             steps {
                 script {
                     // Jenkins에 저장된 credentials를 사용하여 AWS 자격증명을 설정.
                     withAws(region: "${REGION}", credentials:"aws-key"){
-                        def changedServices = env.CHANGED_SERVICES.split(",")
+                        def changedServices = env.SERVICE_DIRS.split(",")
                            changedServices.each {service ->
                            sh """
                            # ECR에 이미지를 push하기 위해 인증 정보를 대신 검증 해주는 도구 다운로드.
@@ -112,7 +110,7 @@ pipeline {
 
                            mkdir -p ~/.docker
 
-                           echo '{"credHelpers": {"${ECR_URL}/${service}": "ecr-login"}}' > ~/.docker/config.json
+                           echo '{"credHelpers": {"${ECR_URL}": "ecr-login"}}' > ~/.docker/config.json
 
                            echo "${ECR_URL}/${service}"
 
