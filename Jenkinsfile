@@ -62,7 +62,7 @@ pipeline {
                     // join() -> 지정한 문자열을 구분자로 하여 리스트 요소를 하나의 문자열로 리턴. 중복
                     // 환경 변수는 문자열만 선언할 수 있어서 join을 사용함.
                     env.CHANGED_SERVICE = changedServices.join(",")
-                    if(env.CHANGED_SERVICE == ""){ // " " -> "" 로 수정
+                    if(env.CHANGED_SERVICE == ""){
                         echo "NO changes detected in service directories. Skipping build and deployment."
                         // 성공 상태로 파이프라인을 종료
                         currentBuild.result = 'SUCCESS'
@@ -96,13 +96,13 @@ pipeline {
         }
        stage('Build Docker Image & Push to AWS ECR') {
                    when {
-                       expression { env.CHANGED_SERVICE != "" } // CHANGED_SERVICES -> CHANGED_SERVICE 로 수정
+                       expression { env.CHANGED_SERVICE != "" }
                    }
                    steps {
-                       script {
-                           // jenkins에 저장된 credentials를 사용하여 AWS 자격증명을 설정.
-                           // withAWS 블록 스코프 안에서 AWS 자격증명이 활성화되도록 변경
-                           withAWS(region: "${REGION}", credentials: "aws-key") {
+                       // jenkins에 저장된 credentials를 사용하여 AWS 자격증명을 설정.
+                       // withAWS 블록의 범위를 steps { ... } 내부 전체로 확장
+                       withAWS(region: "${REGION}", credentials: "aws-key") {
+                           script { // withAWS 내부에 script 블록 포함
                                def changedServices = env.CHANGED_SERVICE.split(",")
                                changedServices.each { service ->
                                    sh """
