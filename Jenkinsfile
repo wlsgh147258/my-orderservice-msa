@@ -145,7 +145,7 @@ pipeline {
                     scp -o StrictHostKeyChecking=no docker-compose.yml ubuntu@${deployHost}:/home/ubuntu/docker-compose.yml
 
                     # 배포 서버로 직접 접속 시도 (compose 돌리러 갑니다!)
-                    ssh -o StrictHostKeyChecking=no ubuntu@${deployHost}'
+                    ssh -o StrictHostKeyChecking=no ubuntu@${deployHost}' \
                     cd /home/ubuntu && \
 
                     # 시간이 지나 로그인 만료 시 필요한 명령
