@@ -8,7 +8,7 @@ pipeline {
     agent any // 젠킨스 서버가 여러개 일때, 어느 젠킨스 서버에서나 실행이 가능
     environment{
         SERVICE_DIRS="config-service,discovery-service,gateway-service,ordering-service,user-service,product-service"
-        ECR_URL="891612549514.dkr.ecr.ap-northeast-2.amazonaws.com/"
+        ECR_URL="597088024931.dkr.ecr.ap-northeast-2.amazonaws.com/"
         REGION="ap-northeast-2"
     }
     stages {
@@ -70,13 +70,10 @@ pipeline {
         stage('Build changed Services') {
             // CHANGED_SERVICES가 빈 문자열이 아니라면 아래의 steps를 실행하겠다.
             // 이 스테이지는 빌드되어야 할 서비스가 존재할 때만 실행될 스테이지다!
-            when {
-                expression { env.CHANGED_SERVICES != "" }
-            }
             steps {
                 script {
                 // 환경 변수 불러오기
-                    def changedServices = env.CHANGED_SERVICES.split(",")
+                    def changedServices = env.SERVICE_DIRS.split(",")
                     changedServices.each { service ->
                         sh """
                          echo "Building ${service}"
