@@ -121,9 +121,9 @@ pipeline {
                                    docker push ${ECR_URL}/${service}:latest
                                    """
                                }
-                           } // withAWS 블록 닫힘
-                       } // script 블록 닫힘
-                   } // steps 블록 닫힘
-               } // stage 블록 닫힘
-    } // stages 블록 닫힘
-} // pipeline 블록 닫힘
+                           }
+                       }
+                   }
+               }
+    }
+}
