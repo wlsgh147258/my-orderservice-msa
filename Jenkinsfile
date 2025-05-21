@@ -1,9 +1,6 @@
 // 자주 사용되는 필요한 변수를 전역으로 선언하는 것도 가능.
 def ecrLoginHelper = "docker-credentials-ecr-login" // ECR  credential helper 이름
 
-
-
-
 // 젠킨스 파일의 선언형 파이프라인 정의부 시작 (그루비 언어)
 pipeline {
     agent any // 젠킨스 서버가 여러개 일때, 어느 젠킨스 서버에서나 실행이 가능
@@ -49,8 +46,6 @@ pipeline {
                     // ordering-service/src/main/resources/application.yml]
                     echo "ChangedFiles: ${changedFiles}"
 
-
-
                     serviceDirs.each{ service ->
                     // changedDiles 라는 리스트를 조회해서 service 변수에 들어온 서비스 이름과
                     // 하나라도 일치하는 이름이 있다면 true, 하나도 존재하지 않으면 false
@@ -67,11 +62,10 @@ pipeline {
                     // join() -> 지정한 문자열을 구분자로 하여 리스트 요소를 하나의 문자열로 리턴. 중복
                     // 환경 변수는 문자열만 선언할 수 있어서 join을 사용함.
                     env.CHANGED_SERVICE = changedServices.join(",")
-                    if(env.CHANGED_SERVICE == " "){
-                        echo " NO changes detected in service directories. Skipping build and deployment."
+                    if(env.CHANGED_SERVICE == ""){ // " " -> "" 로 수정
+                        echo "NO changes detected in service directories. Skipping build and deployment."
                         // 성공 상태로 파이프라인을 종료
                         currentBuild.result = 'SUCCESS'
-
                     }
                 }
             }
@@ -102,13 +96,14 @@ pipeline {
         }
        stage('Build Docker Image & Push to AWS ECR') {
                    when {
-                       expression { env.CHANGED_SERVICES != "" }
+                       expression { env.CHANGED_SERVICE != "" } // CHANGED_SERVICES -> CHANGED_SERVICE 로 수정
                    }
                    steps {
                        script {
                            // jenkins에 저장된 credentials를 사용하여 AWS 자격증명을 설정.
+                           // withAWS 블록 스코프 안에서 AWS 자격증명이 활성화되도록 변경
                            withAWS(region: "${REGION}", credentials: "aws-key") {
-                               def changedServices = env.CHANGED_SERVICES.split(",")
+                               def changedServices = env.CHANGED_SERVICE.split(",")
                                changedServices.each { service ->
                                    sh """
                                    # ECR에 이미지를 push하기 위해 인증 정보를 대신 검증해 주는 도구 다운로드.
@@ -125,14 +120,10 @@ pipeline {
                                    docker tag ${service}:latest ${ECR_URL}/${service}:latest
                                    docker push ${ECR_URL}/${service}:latest
                                    """
-
                                }
-                           }
-
-
-                       }
-                   }
-               }
-
-    }
-}
+                           } // withAWS 블록 닫힘
+                       } // script 블록 닫힘
+                   } // steps 블록 닫힘
+               } // stage 블록 닫힘
+    } // stages 블록 닫힘
+} // pipeline 블록 닫힘
