@@ -1,5 +1,5 @@
 // 자주 사용되는 필요한 변수는 전역으로 선언하는 것도 가능
-// ECR credential helper 이름
+// ECR credential helper 이
 def ecrLoginHelper = "docker-credential-ecr-login"
 def deployHost = "172.31.33.188" // 배포 인스턴스의 프라이빗 주소
 
