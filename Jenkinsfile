@@ -86,7 +86,7 @@ pipeline {
             steps {
                 script {
                 // 환경 변수 불러오기
-                    def changedServices = env.SERVICE_DIRS.split(",")
+                    def changedServices = env.CHANGED_SERVICES.split(",")
                     changedServices.each { service ->
                         sh """
                          echo "Building ${service}"
