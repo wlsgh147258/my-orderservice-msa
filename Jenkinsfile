@@ -22,96 +22,114 @@ pipeline {
         stage('Add Secret To Config-service'){
             steps {
                 withCredentials([file(credentialsId: 'config-secret', variable: 'configSecret')]){
-                    // 중복된 sh 명령 제거, 이 블록 하나만 있어도 충분
                     sh 'cp $configSecret config-service/src/main/resources/application-dev.yml'
-                    // script{} 블록도 불필요하여 제거
+                    script{
+                         sh 'cp $configSecret config-service/src/main/resources/application-dev.yml'
+
+                    }
                 }
             }
         }
         stage('Detect Changes') {
             steps {
                 script {
-                    def commitCount = sh(script:"git rev-list --count HEAD", returnStdout: true).trim().toInteger()
+                    // git rev-list --count HEAD
+                    // rev-list : 특정 브랜치나 커밋을 기준으로 모든 이전 커밋 목록을 나열 -> HEAD 커밋을 기준으로
+                    // --count : 목록을 출력하지 말고, 커밋 개수만 숫자로 반환
+                    def commitCount = sh(script:"git rev-list --count HEAD", returnStdout: true)
+                                      .trim()
+                                      .toInteger()
 
                     def changedServices = []
                     def serviceDirs = env.SERVICE_DIRS.split(",")
 
+                    // 최초 커밋이라면, 모든 서비스를 빌드
                     if (commitCount == 1) {
                         echo "Initial commit Detected. All services will be built."
                         changedServices = serviceDirs
                     }
                     else {
-                        def changedFiles = sh(script:"git diff --name-only HEAD~1 HEAD", returnStdout: true).trim().split("\n")
+                        // 변경된 파일을 감지해보자! git 명령어를 통해서!
+                        // returnStdout: true -> 결과를 출력하지 말고, 변수에 문자열로 넣어달라
+                        def changedFiles = sh(script:"git diff --name-only HEAD~1 HEAD", returnStdout: true)
+                                            .trim()
+                                            .split("\n") // 변경된 파일을 줄 단위로 분리
+                        // 변경된 파일 출력
+                        // [user-service/src/main/resources/application.yml,
+                        // user-service/src/main/java/com/playdata/userservice/controller/UserController.java,
+                        // ordering-service/src/main/resources/application.yml]
                         echo "ChangedFiles: ${changedFiles}"
 
-                        // Docker Compose 파일 변경 시 모든 서비스를 다시 빌드하도록 변경
-                        if (changedFiles.contains("docker-compose.yml")) {
-                            echo "docker-compose.yml changed. All services will be built and deployed."
-                            changedServices = serviceDirs
-                        } else {
-                            serviceDirs.each{ service ->
-                                if (changedFiles.any {it.startsWith(service + "/")}) {
-                                    changedServices.add(service)
-                                }
+
+                        serviceDirs.each{ service ->
+                            if (changedFiles.any {it.startsWith(service + "/")}) {
+                                changedServices.add(service)
                             }
                         }
                     }
-
-                    env.CHANGED_SERVICES = changedServices.unique().join(",") // 중복 제거 및 환경 변수 설정
+                    // 변경된 서비스 이름을 모아놓은 리스트를 다른 스테이지에서도
+                    // 사용하기 위해 환경변수로 선언
+                    // join() : 지정한 문자열을 구분자로 하여 리스트 요소를 하나의 문자열로 리턴, 중복 제거
+                    env.CHANGED_SERVICES = changedServices.join(",")
                     if(env.CHANGED_SERVICES == "") {
-                        echo "No relevant changes Detected. Skipping Build/Deploy Stages"
+                        echo "No changes Detected. Skipping Build Stage"
+                        // 성공 상태로 파이프라인 종료
                         currentBuild.result = 'SUCCESS'
-                        return // 파이프라인 종료
+                        return
                     }
-                    echo "Services to be processed: ${env.CHANGED_SERVICES}" // 어떤 서비스가 처리될지 명확히 출력
                 }
             }
         }
         stage('Build changed Services') {
-            when {
-                expression { env.CHANGED_SERVICES != "" } // 변경된 서비스가 있을 때만 실행
-            }
+            // CHANGED_SERVICES가 빈 문자열이 아니라면 아래의 steps를 실행하겠다.
+            // 이 스테이지는 빌드되어야 할 서비스가 존재할 때만 실행될 스테이지다!
             steps {
                 script {
-                    def changedServicesList = env.CHANGED_SERVICES.split(",")
-                    changedServicesList.each { service ->
-                        // 각 명령을 별도의 sh 블록으로 분리하여 Groovy 변수 보간 문제 해결
-                        echo "Building ${service}"
-                        sh "cd ${service}"
-                        sh "chmod +x gradlew"
-                        sh "./gradlew clean build -x test"
-                        sh "ls -al ./build/libs"
-                        sh "cd .." // 원본 디렉토리로 돌아오기
+                // 환경 변수 불러오기
+                    def changedServices = env.CHANGED_SERVICES.split(",")
+                    changedServices.each { service ->
+                        sh """
+                         echo "Building ${service}"
+                         cd ${service}
+                         chmod +x gradlew
+                         ./gradlew clean build -x test
+                         ls -al ./build/libs
+                         cd ..
+                        """
                     }
                 }
             }
         }
 
          stage('Build Docker Image & Push to AWS ECR') {
-            when {
-                expression { env.CHANGED_SERVICES != "" } // 변경된 서비스가 있을 때만 실행
-            }
             steps {
                 script {
+                    // Jenkins에 저장된 credentials를 사용하여 AWS 자격증명을 설정.
                     withAWS(region: "${REGION}", credentials:"aws-key"){
-                        // ECR 인증 헬퍼 설정은 루프 밖에서 한 번만 실행
-                        sh """
-                        curl -O https://amazon-ecr-credential-helper-releases.s3.us-east-2.amazonaws.com/0.4.0/linux-amd64/${ecrLoginHelper}
-                        chmod +x ${ecrLoginHelper}
-                        mv ${ecrLoginHelper} /usr/local/bin/
-                        mkdir -p ~/.docker
-                        echo '{"credHelpers": {"${ECR_URL}": "ecr-login"}}' > ~/.docker/config.json
-                        """
+                        def changedServices = env.CHANGED_SERVICES.split(",")
+                           changedServices.each {service ->
+                           sh """
+                           # ECR에 이미지를 push하기 위해 인증 정보를 대신 검증 해주는 도구 다운로드.
+                           # /user/local/bin/ 경로에 다운로드한 해당 파일을 이동 및 실행할 수 있는 권한 부여
 
-                        def changedServicesList = env.CHANGED_SERVICES.split(",")
-                        changedServicesList.each { service ->
-                           if (service != "") {
-                             echo "Building and Pushing Docker image for: ${service}"
-                             // 각 docker 명령도 별도의 sh 블록으로 분리
-                             sh "docker build -t ${service}:latest ${service}"
-                             sh "docker tag ${service}:latest ${ECR_URL}/${service}:latest"
-                             sh "docker push ${ECR_URL}/${service}:latest"
-                           }
+                           curl -O https://amazon-ecr-credential-helper-releases.s3.us-east-2.amazonaws.com/0.4.0/linux-amd64/${ecrLoginHelper}
+                           chmod +x ${ecrLoginHelper}
+                           mv ${ecrLoginHelper} /usr/local/bin/
+
+
+                           # Docker에게 push 명령을 내리면 지정된 URL로 push할 수 있게 설정.
+                           # 자동으로 로그인 도구를 쓰게 설정
+
+                           mkdir -p ~/.docker
+
+                           echo '{"credHelpers": {"${ECR_URL}": "ecr-login"}}' > ~/.docker/config.json
+
+                           echo "${ECR_URL}/${service}"
+
+                           docker build -t ${service}:latest ${service}
+                           docker tag ${service}:latest ${ECR_URL}/${service}:latest
+                           docker push ${ECR_URL}/${service}:latest
+                           """
                         }
                     }
                 }
@@ -123,16 +141,13 @@ pipeline {
                      }
                      steps{
                         sshagent(credentials: ["deploy-key"]){
-                            // 각 명령을 별도의 sh 블록으로 분리
-                            sh "ssh -o StrictHostKeyChecking=no ubuntu@${deployHost} 'mkdir -p /home/ubuntu/app'"
+                            sh """
+                            # Jenkins에서 배포 서버로 docker-compose.yml 복사 (경로 수정!)
+                            scp -o StrictHostKeyChecking=no docker-compose.yml ubuntu@${deployHost}:/home/ubuntu/docker-compose.yml
 
-                            // Docker Compose 파일 복사 (대상 경로 변경: /home/ubuntu/app/docker-compose.yml)
-                            sh "scp -o StrictHostKeyChecking=no docker-compose.yml ubuntu@${deployHost}:/home/ubuntu/app/docker-compose.yml"
-
-                            // Docker Compose 실행. deployHost 변수 사용
-                            // ssh 명령 내부에 set -ex 추가하여 디버깅 용이하게
-                            sh "ssh -o StrictHostKeyChecking=no ubuntu@${deployHost} 'set -ex && cd /home/ubuntu/app && aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_URL} && docker-compose pull ${env.CHANGED_SERVICES.replace(",", " ")} && docker-compose up -d ${env.CHANGED_SERVICES.replace(",", " ")}'"
-                            // docker-compose pull/up 명령은 여러 인자를 공백으로 구분하여 받으므로 join(",") 대신 replace(",", " ") 사용
+                            # 배포 서버로 직접 접속 시도 (한 줄로 연결된 명령)
+                            ssh -o StrictHostKeyChecking=no ubuntu@${deployHost} 'cd /home/ubuntu/app && aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_URL} && docker-compose pull ${env.CHANGED_SERVICES} && docker-compose up -d ${env.CHANGED_SERVICES}'
+                            """
                         }
                      }
                   }
