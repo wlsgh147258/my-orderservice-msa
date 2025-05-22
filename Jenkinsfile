@@ -77,11 +77,12 @@ pipeline {
                     changedServicesList.each { service ->
                         // 각 명령을 별도의 sh 블록으로 분리하여 Groovy 변수 보간 문제 해결
                         echo "Building ${service}"
-                        sh "cd ${service}"
-                        sh "chmod +x gradlew"
-                        sh "./gradlew clean build -x test"
-                        sh "ls -al ./build/libs"
-                        sh "cd .." // 원본 디렉토리로 돌아오기
+                        sh """
+                        cd ${service}
+                        chmod +x gradlew
+                        ./gradlew clean build -x test
+                        ls -al ./build/libs
+                        """
                     }
                 }
             }
