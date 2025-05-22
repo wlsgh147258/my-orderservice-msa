@@ -75,6 +75,7 @@ pipeline {
                         echo "No changes Detected. Skipping Build Stage"
                         // 성공 상태로 파이프라인 종료
                         currentBuild.result = 'SUCCESS'
+                        return
                     }
                 }
             }
