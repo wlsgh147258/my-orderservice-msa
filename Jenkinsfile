@@ -141,14 +141,11 @@ pipeline {
                      steps{
                         sshagent(credentials: ["deploy-key"]){
                             sh """
-                             // 1. EC2 인스턴스에 'app' 디렉토리가 없으면 생성 (별도 SSH 세션)
-                                               sh "ssh -o StrictHostKeyChecking=no ubuntu@${deployHost} 'mkdir -p /home/ubuntu/app'"
+                            # Jenkins에서 배포 서버로 docker-compose.yml 복사 (경로 수정!)
+                            scp -o StrictHostKeyChecking=no docker-compose.yml ubuntu@${deployHost}:/home/ubuntu/docker-compose.yml
 
-                                               // 2. Jenkins에서 배포 서버로 docker-compose.yml 복사
-                                               sh "scp -o StrictHostKeyChecking=no docker-compose.yml ubuntu@${deployHost}:/home/ubuntu/app/docker-compose.yml"
-
-                                               // 3. 배포 서버에서 Docker Compose 실행 (별도 SSH 세션)
-                                               sh "ssh -o StrictHostKeyChecking=no ubuntu@${deployHost} 'cd /home/ubuntu/app && aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_URL} && docker-compose pull ${env.CHANGED_SERVICES} && docker-compose up -d ${env.CHANGED_SERVICES}'"
+                            # 배포 서버로 직접 접속 시도 (한 줄로 연결된 명령)
+                            ssh -o StrictHostKeyChecking=no ubuntu@${deployHost} 'cd /home/ubuntu/app && aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_URL} && docker-compose pull ${env.CHANGED_SERVICES} && docker-compose up -d ${env.CHANGED_SERVICES}'
                             """
                         }
                      }
