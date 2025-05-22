@@ -105,3 +105,4 @@ networks:
 volumes:
   db-data: # mysql 컨테이너가 사용하는 db-data 볼륨을 docker-compose도 기억해 줌.
 
+# version: '3.8' → version: '3.8' # trigger build
