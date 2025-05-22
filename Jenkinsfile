@@ -57,7 +57,7 @@ pipeline {
                         }
                     }
 
-                    env.CHANGED_SERVICES = changedServices.unique().join(",") // 중복 제거 및 환경 변수 설정
+                    env.CHANGED_SERVICES = changedServices.toList().unique().join(",") // 배열을 리스트로 변환 후 unique() 호출 // 중복 제거 및 환경 변수 설정
                     if(env.CHANGED_SERVICES == "") {
                         echo "No relevant changes Detected. Skipping Build/Deploy Stages"
                         currentBuild.result = 'SUCCESS'
