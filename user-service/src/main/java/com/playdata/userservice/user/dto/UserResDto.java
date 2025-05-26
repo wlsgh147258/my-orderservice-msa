@@ -12,7 +12,6 @@ import lombok.*;
 @Builder
 public class UserResDto {
 
-    // 메롱
     private Long id;
     private String email;
     private String name;

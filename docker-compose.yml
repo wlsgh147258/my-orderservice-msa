@@ -1,20 +1,14 @@
+
 # Docker Compose 파일 포맷의 버전을 지정합니다.
 version: '3.8'
 services:
   config-service:
-    image: 597088024931.dkr.ecr.ap-northeast-2.amazonaws.com/config-service:latest
+    image: 872651651829.dkr.ecr.ap-northeast-2.amazonaws.com/config-service:latest
     container_name: config-service
     networks:
       - msa-network
     ports:
       - "8888:8888"
-    environment:
-      # 환경변수명 = ${.env에 있는 변수명}
-      - GITHUB_URL=${GITHUB_URL}
-      - USERNAME=${GITHUB_USERNAME}
-      - TOKEN=${GITHUB_TOKEN}
-    env_file:
-      - .env # .env 파일에서 환경변수 로드
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://config-service:8888/actuator/health" ]
       interval: 15s # 15초마다 한번씩 체크
@@ -24,7 +18,7 @@ services:
     restart: always # 컨테이너가 모종의 이유로 중지되면 무조건 재시작 시도.
 
   discovery-service:
-    image: 597088024931.dkr.ecr.ap-northeast-2.amazonaws.com/discovery-service:latest
+    image: 872651651829.dkr.ecr.ap-northeast-2.amazonaws.com/discovery-service:latest
     container_name: discovery-service
     networks:
       - msa-network
@@ -39,7 +33,7 @@ services:
     restart: always # 컨테이너가 모종의 이유로 중지되면 무조건 재시작 시도.
 
   gateway-service:
-    image: 597088024931.dkr.ecr.ap-northeast-2.amazonaws.com/gateway-service:latest
+    image: 872651651829.dkr.ecr.ap-northeast-2.amazonaws.com/gateway-service:latest
     container_name: gateway-service
     networks:
       - msa-network
@@ -54,7 +48,7 @@ services:
     restart: always
 
   user-service:
-    image: 597088024931.dkr.ecr.ap-northeast-2.amazonaws.com/user-service:latest
+    image: 872651651829.dkr.ecr.ap-northeast-2.amazonaws.com/user-service:latest
     container_name: user-service
     networks:
       - msa-network
@@ -66,9 +60,9 @@ services:
         condition: service_healthy
     restart: always
 
-  ordering-service:
-    image: 597088024931.dkr.ecr.ap-northeast-2.amazonaws.com/ordering-service:latest
-    container_name: ordering-service
+  order-service:
+    image: 872651651829.dkr.ecr.ap-northeast-2.amazonaws.com/ordering-service:latest
+    container_name: order-service
     networks:
       - msa-network
     depends_on:
@@ -80,7 +74,7 @@ services:
     restart: always
 
   product-service:
-    image: 597088024931.dkr.ecr.ap-northeast-2.amazonaws.com/product-service:latest
+    image: 872651651829.dkr.ecr.ap-northeast-2.amazonaws.com/product-service:latest
     container_name: product-service
     networks:
       - msa-network
@@ -96,8 +90,10 @@ services:
     ports:
       - "6379:6379"
     networks:
-      - msa-network # 서비스들이 연결될 Docker 네트워크를 정의할 수 있습니다.
-      # 동일한 호스트 내에서 서로 통신할 수 있도록 해 주는 Docker의 네트워크 드라이버.
+      - msa-network
+
+# 서비스들이 연결될 Docker 네트워크를 정의할 수 있습니다.
+# 동일한 호스트 내에서 서로 통신할 수 있도록 해 주는 Docker의 네트워크 드라이버.
 networks:
   msa-network:
     driver: bridge
@@ -105,4 +101,21 @@ networks:
 volumes:
   db-data: # mysql 컨테이너가 사용하는 db-data 볼륨을 docker-compose도 기억해 줌.
 
-# version: '3.8' → version: '3.8' # trigger build
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -30,7 +30,6 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class UserController {
 
-    // 메롱
     // 컨트롤러는 서비스에 의존하고 있다. (요청과 함께 전달받은 데이터를 서비스에게 넘겨야 함!)
     // 빈 등록된 서비스 객체를 자동으로 주입 받자!
     private final UserService userService;
@@ -171,6 +170,23 @@ public class UserController {
         CommonResDto resDto
                 = new CommonResDto(HttpStatus.OK, "이메일로 회원 조회 완료", dto);
         return ResponseEntity.ok().body(resDto);
+    }
+
+    // 유효한 이메일인지 검증 요청
+    @PostMapping("/email-valid")
+    public ResponseEntity<?> emailValid(@RequestBody Map<String, String> map) {
+        String email = map.get("email");
+        log.info("이메일 인증 요청! email: {}", email);
+        String authNum = userService.mailCheck(email);
+
+        return ResponseEntity.ok().body(authNum);
+    }
+
+    @PostMapping("/verify")
+    public ResponseEntity<?> verifyEmail(@RequestBody Map<String, String> map) {
+        log.info("인증 코드 검증! map: {}", map);
+        userService.verifyEmail(map);
+
     }
 
     @GetMapping("/health-check")

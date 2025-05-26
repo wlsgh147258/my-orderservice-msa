@@ -1,20 +1,5 @@
-# 젠킨스 시크릿 크리덴셜 7
+# jenkins secret credential 사용하기 -2
 
 spring:
   profiles:
-    name: config-service
-  cloud:
-    config:
-      server:
-        git:
-          uri: ${GITHUB_URL}
-          default-label: main
-          username: ${USERNAME}
-          password: ${TOKEN}
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health, refresh, beans
-
+    active: dev

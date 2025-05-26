@@ -6,15 +6,19 @@ import com.playdata.userservice.user.dto.UserResDto;
 import com.playdata.userservice.user.dto.UserSaveReqDto;
 import com.playdata.userservice.user.entity.User;
 import com.playdata.userservice.user.repository.UserRepository;
+import jakarta.mail.MessagingException;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -26,6 +30,11 @@ public class UserService {
     // repository 객체를 자동으로 주입받자. (JPA가 만들어서 컨테이너에 등록해 놓음)
     private final UserRepository userRepository;
     private final PasswordEncoder encoder;
+    private final MailSenderService mailSenderService;
+    private final RedisTemplate<String, Object> redisTemplate;
+
+    // Redis key 상수
+    private static final String VERIFIACTION_CODE_KEY = "email_verify:code:";
 
     // 컨트롤러가 이 메서드를 호출할 것이다.
     // 그리고 지가 전달받은 dto를 그대로 넘길 것이다.
@@ -101,7 +110,34 @@ public class UserService {
         );
         return user.fromEntity();
     }
+
+    public String mailCheck(String email) {
+        Optional<User> byEmail = userRepository.findByEmail(email);
+        if (byEmail.isPresent()) {
+            throw new IllegalArgumentException("이미 존재하는 이메일 입니다!");
+        }
+
+        String authNum;
+        try {
+            // 이메일 전송만을 담당하는 객체를 이용해서 이메일 로직 작성.
+            authNum = mailSenderService.joinMail(email);
+        } catch (MessagingException e) {
+            throw new RuntimeException("이메일 전송 과정 중 문제 발생!");
+        }
+
+        String key = VERIFIACTION_CODE_KEY + email;
+        RedisTemplate.opsForValue().set(key, authNum, Duration.ofMinutes(1));
+
+
+        return authNum;
+    }
+
+    public void verifyEmail(Map<String, String> map) {
+        String key = VERIFIACTION_CODE_KEY + map.get("email");
+        Object foundCode = redisTemplate.opsForValue().get(key);
+    }
 }
+
 
 
 
